@@ -5,6 +5,25 @@ import { uploadOnCloudinary } from '../utils/cloudinary.js'
 import { ApiResponse } from '../utils/ApiResponse.js'
 
 
+// generate access and refresh token
+const generateAccessTokenAndRefreshToken = async (userId) => {
+    try {
+        const user = await User.findById(userId)
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        // save in database
+        user.refreshToken = refreshToken
+        await user.save({validateBeforeSave: false})
+
+        return {accessToken, refreshToken}
+
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong in server")
+    }
+}
+
+
 // email validation
 const isValidEmail = (email) => {
     const regex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.(com|net|org|in)$/;
@@ -12,6 +31,7 @@ const isValidEmail = (email) => {
 }
 
 
+// register user
 const registerUser = asyncHandler( async (req, res) => {
     // get user details from frontend
     // validation - not empty
@@ -23,8 +43,10 @@ const registerUser = asyncHandler( async (req, res) => {
     // check for user creation
     // return res
 
+
+    // req.body takes the data from frontend and saves in req.body
     const {fullName, username, email, password} = req.body
-    console.log(req.body)
+    // console.log(req.body)
 
     // validation - not empty
     if(
@@ -51,7 +73,7 @@ const registerUser = asyncHandler( async (req, res) => {
     // console.log(existedUser)
 
     // checking for images, check for avatar
-    console.log(req.files)
+    // console.log(req.files)
    
     const avatarLocalPath = req.files?.avatar[0]?.path
     // console.log(avatarLocalPath)
@@ -98,6 +120,91 @@ const registerUser = asyncHandler( async (req, res) => {
 
 })
 
+
+// login user
+const loginUser = asyncHandler( async (req, res) => {
+    // req body -> data
+    // username or email
+    //find the user
+    //password check
+    //access and refresh token
+    //send cookie
+
+    // takes the data from user
+    const body = req.body 
+    const { email, username, password } = body;
+    console.log(email)
+
+    if(!email && !username){
+        throw new ApiError(400, "email and username are required or invalid")
+    }
+
+    const user = await User.findOne({
+        $or: [{username}, {email}]
+    })
+
+    const validatePassword = await user.isPasswordCorrect(password)
+
+    if(!validatePassword){
+        throw new ApiError(401, "invalid password, please recheck the password")
+    }
+
+    const {accessToken, refreshToken} = await generateAccessTokenAndRefreshToken(user._id)
+
+    const loggedInUser = await User.findById(user._id).select("-password -refreshToken")
+
+
+    const options = {
+        httpOnly: true,
+        secure: true,
+    }
+
+    return res
+    .status(201)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        new ApiResponse(
+            200,
+            {
+                user:loggedInUser, accessToken, refreshToken
+            },
+            "user logged in successfully"
+        )
+    )
+
+})
+
+
+// logout user
+const logoutUser = asyncHandler(async (req, res) => {
+    await User.findByIdAndUpdate(
+        req.user._id,
+        {
+            $set : {
+                refreshToken: undefined
+            }
+        },
+        {
+            new: true
+        }
+    )
+
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(201, {}, "User logout successfully"))
+})
+
+
 export {
-    registerUser
+    registerUser,
+    loginUser,
+    logoutUser
 }
