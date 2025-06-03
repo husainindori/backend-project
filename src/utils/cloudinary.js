@@ -8,6 +8,7 @@ cloudinary.config({
     // secure: true
 })
 
+// upload the file on cloudinary
 const uploadOnCloudinary = async (localFilePath) => {
     if(!localFilePath) return null
 
@@ -26,7 +27,47 @@ const uploadOnCloudinary = async (localFilePath) => {
         fs.unlinkSync(localFilePath) // remove the locally saved temporary file as the upload operation got failed
         return null
     }
-
 }
 
-export { uploadOnCloudinary }
+// delete the file from cloudinary
+const deleteOnCloudinary = async (publicId) => {
+    try {
+        const response = await cloudinary.uploader.destroy(publicId)
+        return response
+    } catch (error) {
+        return null
+    }
+}
+
+// update the file on cloudinary
+// const updateOnCloudinary = async (publicId, localFilePath) => {
+//     try {
+//         const response = await cloudinary.uploader.upload(localFilePath, {
+//             public_id: publicId,
+//             resource_type: 'auto'
+//         })
+//         return response
+//     } catch (error) {
+//         return null
+//     }
+// }
+
+// extract public id from url
+
+const extractPublicIdFromUrl = (imageUrl) => {
+    try {
+        const parts = imageUrl.url.split('/');
+        const fileName = parts.pop()
+        const publicId = parts.slice(parts.indexOf('upload')+1).join('/') + '/' + fileName.split('.')[0];
+        return publicId
+    } catch (error) {
+        console.error("Error extracting public ID from URL:", error);
+        return null
+    }
+}
+
+export { 
+    uploadOnCloudinary,
+    deleteOnCloudinary,
+    extractPublicIdFromUrl,
+ }
